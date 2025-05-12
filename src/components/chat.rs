@@ -137,65 +137,162 @@ impl Component for Chat {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let submit = ctx.link().callback(|_| Msg::SubmitMessage);
+        let (user, _) = ctx
+            .link()
+            .context::<User>(Callback::noop())
+            .expect("context to be set");
+        let current_user = user.username.borrow().clone();
 
         html! {
-            <div class="flex w-screen">
-                <div class="flex-none w-56 h-screen bg-gray-100">
-                    <div class="text-xl p-3">{"Users"}</div>
-                    {
-                        self.users.clone().iter().map(|u| {
-                            html!{
-                                <div class="flex m-3 bg-white rounded-lg p-2">
-                                    <div>
-                                        <img class="w-12 h-12 rounded-full" src={u.avatar.clone()} alt="avatar"/>
-                                    </div>
-                                    <div class="flex-grow p-3">
-                                        <div class="flex text-xs justify-between">
-                                            <div>{u.name.clone()}</div>
-                                        </div>
-                                        <div class="text-xs text-gray-400">
-                                            {"Hi there!"}
-                                        </div>
-                                    </div>
-                                </div>
-                            }
-                        }).collect::<Html>()
-                    }
-                </div>
-                <div class="grow h-screen flex flex-col">
-                    <div class="w-full h-14 border-b-2 border-gray-300"><div class="text-xl p-3">{"💬 Chat!"}</div></div>
-                    <div class="w-full grow overflow-auto border-b-2 border-gray-300">
+            <div class="flex w-screen h-screen bg-gray-100">
+                // Sidebar with users
+                <div class="flex-none w-72 h-screen bg-white shadow-lg overflow-hidden flex flex-col">
+                    <div class="bg-indigo-600 text-white py-4 px-5 flex items-center">
+                        <svg class="h-7 w-7 text-white mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <h1 class="text-xl font-bold">{"Online Users"}</h1>
+                    </div>
+                    <div class="flex-grow overflow-y-auto">
                         {
-                            self.messages.iter().map(|m| {
-                                let user = self.users.iter().find(|u| u.name == m.from).unwrap();
-                                html!{
-                                    <div class="flex items-end w-3/6 bg-gray-100 m-8 rounded-tl-lg rounded-tr-lg rounded-br-lg ">
-                                        <img class="w-8 h-8 rounded-full m-3" src={user.avatar.clone()} alt="avatar"/>
-                                        <div class="p-3">
-                                            <div class="text-sm">
-                                                {m.from.clone()}
-                                            </div>
-                                            <div class="text-xs text-gray-500">
-                                                if m.message.ends_with(".gif") {
-                                                    <img class="mt-3" src={m.message.clone()}/>
-                                                } else {
-                                                    {m.message.clone()}
-                                                }
-                                            </div>
-                                        </div>
+                            if self.users.is_empty() {
+                                html! {
+                                    <div class="flex items-center justify-center h-full text-gray-500">
+                                        {"No users online"}
                                     </div>
                                 }
-                            }).collect::<Html>()
+                            } else {
+                                self.users.clone().iter().map(|u| {
+                                    html!{
+                                        <div class="flex items-center p-4 border-b border-gray-100 hover:bg-gray-50 transition duration-150">
+                                            <div class="relative">
+                                                <img class="w-12 h-12 rounded-full object-cover" src={u.avatar.clone()} alt="avatar"/>
+                                                <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-white rounded-full"></span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="font-medium">
+                                                    {u.name.clone()}
+                                                </div>
+                                                <div class="text-xs text-gray-500">
+                                                    {"Online"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                }).collect::<Html>()
+                            }
                         }
-
                     </div>
-                    <div class="w-full h-14 flex px-3 items-center">
-                        <input ref={self.chat_input.clone()} type="text" placeholder="Message" class="block w-full py-2 pl-4 mx-3 bg-gray-100 rounded-full outline-none focus:text-gray-700" name="message" required=true />
-                        <button onclick={submit} class="p-3 shadow-sm bg-blue-600 w-10 h-10 rounded-full flex justify-center items-center color-white">
-                            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="fill-white">
-                                <path d="M0 0h24v24H0z" fill="none"></path><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                </div>
+                
+                // Main chat area
+                <div class="grow h-screen flex flex-col">
+                    // Chat header
+                    <div class="flex items-center h-16 bg-white shadow-sm z-10 px-6">
+                        <div class="mr-4">
+                            <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                             </svg>
-                        </button>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold">{"YewChat"}</h2>
+                            <div class="text-xs text-gray-500">{format!("Logged in as {}", current_user)}</div>
+                        </div>
+                    </div>
+                    
+                    // Messages area
+                    <div class="w-full flex-grow overflow-auto bg-gray-50 p-4">
+                        {
+                            if self.messages.is_empty() {
+                                html! {
+                                    <div class="flex flex-col items-center justify-center h-full text-gray-500">
+                                        <svg class="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                        </svg>
+                                        <p class="mt-2">{"No messages yet. Start the conversation!"}</p>
+                                    </div>
+                                }
+                            } else {
+                                self.messages.iter().map(|m| {
+                                let is_own_message = m.from == current_user;
+                                
+                                let user = self.users.iter()
+                                    .find(|u| u.name == m.from)
+                                    .cloned()
+                                    .unwrap_or_else(|| UserProfile {
+                                        name: m.from.clone(), 
+                                        avatar: format!("https://avatars.dicebear.com/api/adventurer-neutral/{}.svg", m.from)
+                                    });
+                                
+                                html!{
+                                    <div class={classes!(
+                                        "flex",
+                                        "mb-4",
+                                        "max-w-xl",
+                                        if is_own_message { "ml-auto" } else { "" }
+                                    )}>
+                                        if !is_own_message {
+                                            <img class="w-8 h-8 rounded-full mr-2 self-end" src={user.avatar.clone()} alt="avatar"/>
+                                        }
+                                            <div class={classes!(
+                                                "p-3",
+                                                "rounded-lg",
+                                                "shadow-sm",
+                                                if is_own_message { "bg-indigo-600 text-white" } else { "bg-white" },
+                                                if is_own_message { "rounded-br-none" } else { "rounded-bl-none" }
+                                            )}>
+                                                if !is_own_message {
+                                                    <div class="text-xs font-medium text-gray-500">
+                                                        {&m.from}
+                                                    </div>
+                                                }
+                                                <div class={classes!(
+                                                    if is_own_message { "text-white" } else { "text-gray-800" }
+                                                )}>
+                                                    if m.message.ends_with(".gif") {
+                                                        <img class="mt-1 max-w-xs rounded" src={m.message.clone()}/>
+                                                    } else {
+                                                        {&m.message}
+                                                    }
+                                                </div>
+                                            </div>
+                                            if is_own_message {
+                                                <img class="w-8 h-8 rounded-full ml-2 self-end" src={user.avatar.clone()} alt="avatar"/>
+                                            }
+                                        </div>
+                                    }
+                                }).collect::<Html>()
+                            }
+                        }
+                    </div>
+                    
+                    // Message input
+                    <div class="w-full bg-white p-4 shadow-lg">
+                        <div class="flex items-center rounded-full bg-gray-100 overflow-hidden px-4 py-1">
+                            <input 
+                                ref={self.chat_input.clone()} 
+                                type="text" 
+                                placeholder="Type a message..." 
+                                class="block w-full py-2 pl-2 bg-transparent outline-none"
+                                name="message" 
+                                required=true 
+                                onkeypress={ctx.link().batch_callback(|e: KeyboardEvent| {
+                                    if e.key() == "Enter" {
+                                        Some(Msg::SubmitMessage)
+                                    } else {
+                                        None
+                                    }
+                                })}
+                            />
+                            <button 
+                                onclick={submit} 
+                                class="p-2 ml-2 bg-indigo-600 rounded-full flex justify-center items-center hover:bg-indigo-700 transition duration-150"
+                            >
+                                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 fill-white">
+                                    <path d="M0 0h24v24H0z" fill="none"></path><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
